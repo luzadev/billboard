@@ -126,14 +126,32 @@ def scan_networks():
     return sorted(nets, key=lambda n: -n[1])[:20]
 
 
-def set_country(country=None):
+def wifi_prepare(country=None):
+    """Sblocca il Wi-Fi: su Raspberry Pi OS resta bloccato (rfkill) finche' non e' impostato il paese."""
     country = country or load_config().get('country')
     if country:
+        run(['raspi-config', 'nonint', 'do_wifi_country', country], timeout=60)
         run(['iw', 'reg', 'set', country], timeout=10)
+    run(['rfkill', 'unblock', 'all'], timeout=10)
+    run(['nmcli', 'radio', 'wifi', 'on'], timeout=15)
+    for _ in range(10):
+        r = run(['nmcli', '-t', '-f', 'DEVICE,TYPE,STATE', 'device'], timeout=15)
+        if 'wlan0:wifi:' in (r.stdout or '') and 'unavailable' not in (r.stdout or '').split('wlan0:wifi:')[1].split('\n')[0]:
+            return True
+        time.sleep(2)
+    return False
+
+
+def wifi_diagnostics():
+    r1 = run(['nmcli', '-t', '-f', 'DEVICE,STATE', 'device'], timeout=15)
+    r2 = run(['rfkill', 'list', 'wifi'], timeout=10)
+    wl = next((l for l in (r1.stdout or '').splitlines() if l.startswith('wlan0')), 'wlan0 assente')
+    blocked = 'bloccato' if 'yes' in (r2.stdout or '') else 'sbloccato'
+    return f'{wl} · rfkill {blocked}'
 
 
 def connect_wifi(ssid, password, country=None):
-    set_country(country)
+    wifi_prepare(country)
     run(['rfkill', 'unblock', 'wifi'], timeout=10)
     run(['nmcli', 'connection', 'delete', ssid], timeout=15)   # rimpiazza un profilo con lo stesso nome
     cmd = ['nmcli', 'device', 'wifi', 'connect', ssid, 'ifname', 'wlan0']
@@ -147,13 +165,28 @@ def connect_wifi(ssid, password, country=None):
 
 def start_hotspot():
     ssid = state['hotspot_ssid']
-    set_country()
-    run(['rfkill', 'unblock', 'wifi'], timeout=10)
+    wifi_prepare()
     run(['nmcli', 'connection', 'delete', HOTSPOT_CON], timeout=15)
     r = run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', HOTSPOT_CON,
-             'ssid', ssid, 'password', HOTSPOT_PASS], timeout=60)
-    log(f'hotspot {ssid}: {"attivo" if r.returncode == 0 else "errore: " + (r.stderr or "").strip()}')
-    return r.returncode == 0
+             'ssid', ssid, 'band', 'bg', 'password', HOTSPOT_PASS], timeout=60)
+    if r.returncode == 0:
+        log(f'hotspot {ssid}: attivo')
+        return True
+    err1 = (r.stderr or r.stdout or '').strip()
+    log(f'hotspot rapido fallito: {err1}; provo la creazione manuale')
+    # Fallback: connessione AP creata a mano (2.4 GHz, canale 6, WPA2, IP condiviso 10.42.0.1)
+    run(['nmcli', 'connection', 'delete', HOTSPOT_CON], timeout=15)
+    run(['nmcli', 'connection', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', HOTSPOT_CON,
+         'autoconnect', 'no', 'ssid', ssid, 'mode', 'ap', 'ipv4.method', 'shared', 'ipv6.method', 'disabled',
+         'wifi.band', 'bg', 'wifi.channel', '6', 'wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', HOTSPOT_PASS], timeout=30)
+    r2 = run(['nmcli', 'connection', 'up', HOTSPOT_CON], timeout=90)
+    if r2.returncode == 0:
+        log(f'hotspot {ssid}: attivo (manuale)')
+        return True
+    err2 = (r2.stderr or r2.stdout or '').strip()
+    state['message'] = f'hotspot non creato: {err2[:90] or err1[:90]} · {wifi_diagnostics()}'
+    log(state['message'])
+    return False
 
 
 def stop_hotspot():
@@ -359,7 +392,9 @@ def enter_setup():
         state['message'] = ''
         restart_kiosk()
         return True
-    state['message'] = 'impossibile creare la rete di configurazione'
+    state['offline_since'] = time.time()   # riprova tra un altro periodo di grazia
+    if not state['message']:
+        state['message'] = 'impossibile creare la rete di configurazione'
     return False
 
 
