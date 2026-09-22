@@ -284,3 +284,6 @@ textarea { resize: vertical; min-height: 64px; }
 .manage-section { margin-top: 18px; }
 .manage-section h4 { margin: 0 0 8px; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-2); }
 .dev-actions { display: flex; gap: 6px; }
+.manage-section .row { align-items: center; }
+.manage-section .row input[type="checkbox"] { flex: none; width: 18px; }
+.manage-section .row .check { flex: 0 0 auto; margin: 0; }

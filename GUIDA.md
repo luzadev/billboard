@@ -151,6 +151,25 @@ Suggerimenti:
   Scegli quanti titoli mostrare con "Titoli dal feed". Le notizie scritte a mano vengono mostrate
   dopo i titoli del feed, oppure da sole se il feed non risponde. Funzionano i feed RSS e Atom.
 
+## 7a. Gestire i Raspberry dal pannello
+
+Nella scheda di ogni schermo che ha l'agente installato compare il pulsante **Gestisci**. Si apre
+una finestra con lo stato reale del Raspberry, aggiornato ogni 30 secondi: rete Wi‑Fi e potenza
+del segnale, cavo Ethernet, indirizzo IP, tempo dall'accensione, temperatura del processore,
+versione del sistema e dell'agente, spazio su disco, memoria libera, stato del player.
+
+Azioni disponibili (vengono eseguite dal Pi entro 30 secondi, con esito nella lista "Comandi recenti"):
+
+- **Riavvia player**: chiude e riapre Chromium, senza riavviare il Pi.
+- **Riavvia Raspberry**: riavvio completo (schermo nero per circa un minuto).
+- **Aggiorna software**: scarica ed esegue l'ultima versione dell'installer BillBoard dal
+  repository; aggiorna player e agente.
+- **Riavvia agente**: riavvia solo il servizio di gestione.
+- **Rete Wi‑Fi per una prossima sede**: memorizza sul Pi una rete aggiuntiva (nome e password).
+  Quando lo sposti, il Pi la usa da solo se la trova. Con "Collega subito" cambia rete immediatamente.
+- **Cambia server**: il Pi passa a un altro server BillBoard (per esempio dal server di prova al
+  cloud) e dovrà essere associato di nuovo nel pannello del nuovo server.
+
 ## 7b. Spostare uno schermo in un'altra sede (rete o server diversi)
 
 Ogni Raspberry ha un piccolo **agente** che controlla la rete. Se all'accensione non trova una

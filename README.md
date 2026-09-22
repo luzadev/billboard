@@ -35,6 +35,9 @@ riproducono le playlist assegnate.
 - **Anteprima dal vivo** nel pannello e anteprima dell'intera playlist a schermo intero.
 - **Stato schermi**: online/offline, risoluzione, orientamento, ultimo contatto, IP; avviso se la
   playlist ha un orientamento diverso dallo schermo.
+- **Gestione remota dei Raspberry**: telemetria (Wi‑Fi e segnale, IP, temperatura, uptime, disco,
+  RAM, versioni) e comandi dal pannello: riavvio player o Pi, aggiornamento software, cambio
+  server, reti Wi‑Fi aggiuntive per le prossime sedi.
 - I player si aggiornano da soli entro pochi secondi da ogni modifica, continuano a riprodurre
   l'ultima playlist se cade la rete e si ricaricano quando il server viene aggiornato.
 - Un solo container, dati in una cartella (`data/`): backup = copia della cartella.
@@ -143,12 +146,17 @@ Feed (sessione admin oppure token dispositivo):
 |--------|------------|--------------------------------------------------------------------|
 | GET    | /api/feed  | `?url=<rss>&max=10` → `{titles, fetched_at}`, cache 5 min, solo host pubblici |
 
-Player (token Bearer):
+Player e agente (token Bearer, condiviso):
 
-| Metodo | Percorso              | Descrizione                                              |
-|--------|-----------------------|----------------------------------------------------------|
-| POST   | /api/device/register  | Crea il dispositivo, ritorna `{token, code}`             |
-| GET    | /api/device/state     | `{paired, code}` oppure `{paired, name, playlist, app_version}` |
+| Metodo | Percorso                  | Descrizione                                              |
+|--------|---------------------------|----------------------------------------------------------|
+| POST   | /api/device/register      | Crea il dispositivo, ritorna `{token, code}`             |
+| GET    | /api/device/state         | `{paired, code}` oppure `{paired, name, playlist, app_version}` |
+| POST   | /api/device/agent         | Telemetria `{info}` → `{commands:[…]}` in coda           |
+| POST   | /api/device/agent/result  | Esito di un comando `{id, ok, output}`                   |
+
+Admin, comandi remoti: `GET/POST /api/admin/devices/:id/commands` (`restart_player`, `reboot`,
+`restart_agent`, `update`, `set_server {url}`, `wifi_add {ssid, password, connect}`).
 
 Lo schema delle opzioni grafiche (`options`) è definito e validato in `server/style.js`.
 
