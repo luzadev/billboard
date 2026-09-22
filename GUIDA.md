@@ -31,6 +31,11 @@ Il pannello ha tre sezioni nella barra laterale:
 
 ## 2. Collegare uno schermo
 
+Il Raspberry può essere preparato in due modi (vedi il README): con lo script `install.sh` su un
+Raspberry Pi OS già avviato, oppure scrivendo sulla microSD l'**immagine già configurata** creata
+con `build-image.sh`, che al primo avvio si installa da sola senza tastiera né mouse (servono
+alcuni minuti e un riavvio automatico).
+
 1. Accendi il Raspberry con il player installato. Dopo qualche secondo lo schermo mostra un
    **codice di 6 caratteri** (per esempio `K7XM2Q`).
 2. Nel pannello, sezione **Schermi**, lo schermo compare nel riquadro "In attesa di associazione"

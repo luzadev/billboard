@@ -93,6 +93,27 @@ riavviato. Al boot lo schermo mostra il codice di associazione.
 Per uno schermo **verticale** imposta la rotazione sul Pi (Screen Configuration nel desktop,
 oppure `wlr-randr`), il player si adatta da solo.
 
+### Immagine SD già configurata (senza tastiera)
+
+In alternativa, `pi/build-image.sh` crea dal Mac o da Linux un'immagine di Raspberry Pi OS
+personalizzata: al primo avvio il Pi configura utente, Wi‑Fi, hostname e fuso orario, installa il
+player e si riavvia mostrando il codice di associazione. Usa lo stesso meccanismo di primo avvio
+(cloud-init) di Raspberry Pi Imager.
+
+```bash
+bash pi/build-image.sh --server https://billboard.tuodominio.it \
+  --wifi-ssid "MiaRete" --wifi-pass "segreta" --pass "password-del-pi" --ssh
+# → billboard-YYYYMMDD.img da scrivere sulla microSD con Raspberry Pi Imager
+#   ("Usa immagine personalizzata", senza altre personalizzazioni), balenaEtcher o dd
+```
+
+Lo script scarica l'ultima Raspberry Pi OS 64-bit Desktop ufficiale (una volta sola, poi la
+tiene in `pi/cache/`), la decomprime e scrive `user-data`, `meta-data` e `network-config` nella
+partizione di boot. Serve `xz` (`brew install xz` su macOS). Opzioni: `--user`, `--hostname`,
+`--country`, `--timezone`, `--keymap`, `--wifi-hidden`, `--image` (immagine locale), `--compress`.
+La stessa immagine va bene per tutti gli schermi che usano lo stesso server e la stessa rete: ogni
+Pi riceve un codice di associazione diverso.
+
 ## API (riassunto)
 
 Admin (cookie di sessione, login su `POST /api/auth/login`):
@@ -140,6 +161,7 @@ public/admin/      pannello di controllo (HTML/CSS/JS senza build)
 public/player/     player a schermo intero (/player/?preview=<id> per l'anteprima)
 public/shared/     motore di rendering condiviso tra player e anteprima
 pi/install.sh      installazione chiosco su Raspberry Pi OS
+pi/build-image.sh  crea un'immagine SD preconfigurata (cloud-init)
 Dockerfile, docker-compose*.yml, Caddyfile
 ```
 
