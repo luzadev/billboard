@@ -1,0 +1,7 @@
+{$DOMAIN} {
+	reverse_proxy billboard:8080
+	request_body {
+		max_size 500MB
+	}
+	encode gzip
+}

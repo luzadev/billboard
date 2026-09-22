@@ -1,0 +1,28 @@
+# Variante con HTTPS automatico (Let's Encrypt) tramite Caddy.
+# Serve un dominio che punta all'IP del server (es. billboard.tuodominio.it).
+#   DOMAIN=billboard.tuodominio.it ADMIN_PASSWORD=segreta \
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+services:
+  billboard:
+    ports: !reset []
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Imposta DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - billboard
+
+volumes:
+  caddy_data:
+  caddy_config:

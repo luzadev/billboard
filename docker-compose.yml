@@ -1,0 +1,15 @@
+# Avvio base: il server risponde in HTTP sulla porta 8080.
+#   ADMIN_PASSWORD=segreta docker compose up -d
+services:
+  billboard:
+    build: .
+    image: billboard:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Imposta ADMIN_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-300}
+    volumes:
+      - ./data:/app/data

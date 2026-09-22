@@ -1,0 +1,31 @@
+.bb-item { position: absolute; inset: 0; overflow: hidden; background: #000; }
+.bb-media-box { position: absolute; overflow: hidden; }
+.bb-media { width: 100%; height: 100%; display: block; object-fit: contain; border: 0; }
+iframe.bb-media { background: #fff; }
+.bb-text { position: absolute; overflow: hidden; line-height: 1.25; padding: .3em .6em; box-sizing: border-box; display: flex; align-items: center; }
+.bb-text-inner { white-space: pre-wrap; overflow-wrap: break-word; max-width: 100%; }
+.bb-text-inner.bb-rotated { writing-mode: vertical-rl; max-width: none; max-height: 100%; }
+/* scorrimento orizzontale: una riga sola che entra da un lato */
+.bb-text.bb-scroll-x { justify-content: flex-start !important; padding-left: 0; padding-right: 0; }
+.bb-text.bb-scroll-x .bb-text-inner { white-space: nowrap; width: max-content; max-width: none; will-change: transform; padding: 0 .6em; }
+/* scorrimento verticale: il testo (anche su piu' righe) entra dall'alto o dal basso */
+.bb-text.bb-scroll-y { align-items: flex-start; padding-top: 0; padding-bottom: 0; }
+.bb-text.bb-scroll-y .bb-text-inner { height: max-content; max-height: none; will-change: transform; padding: .3em 0; }
+.bb-text.bb-scroll-y .bb-text-inner.bb-rotated { white-space: nowrap; width: max-content; }
+
+/* ----- widget televisivi ----- */
+.bb-lt { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: .1em; padding: 0 1.2em; box-sizing: border-box; overflow: hidden; line-height: 1.15;
+  box-shadow: 0 .4em 1.2em rgba(0,0,0,.35); }
+.bb-lt-label { align-self: flex-start; font-weight: 800; text-transform: uppercase; letter-spacing: .14em; padding: .2em .7em; border-radius: .15em; margin-bottom: .15em; }
+.bb-lt-title { font-weight: 800; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-lt-sub { font-weight: 500; opacity: .92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-tk { position: absolute; display: flex; align-items: stretch; overflow: hidden; box-sizing: border-box; line-height: 1; }
+.bb-tk > div { display: flex; align-items: center; flex: none; }
+.bb-tk-clock { padding: 0 .9em; font-weight: 700; font-variant-numeric: tabular-nums; background: rgba(0,0,0,.35); }
+.bb-tk-label { padding: 0 .9em; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+.bb-tk-tag { padding: 0 .8em; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .8em; }
+.bb-tk-track { flex: 1 1 auto !important; overflow: hidden; padding-left: .8em; }
+.bb-tk-text { white-space: nowrap; width: max-content; font-weight: 600; will-change: transform; }
+.bb-clock { position: absolute; display: flex; align-items: center; box-sizing: border-box; padding: 0 .5em; overflow: hidden; white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1; }
+.bb-logo { position: absolute; }
+.bb-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>BillBoard Player</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../shared/render.css">
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <div id="stage"></div>
+
+  <section id="pairing" class="overlay hidden">
+    <div class="box">
+      <p class="label">Codice di associazione</p>
+      <p id="code" class="code">------</p>
+      <p class="hint">Apri il pannello admin → Schermi e associa questo dispositivo con il codice.</p>
+      <p id="pair-host" class="host"></p>
+    </div>
+  </section>
+
+  <section id="idle" class="overlay hidden">
+    <div class="box">
+      <p class="label">Nessun contenuto</p>
+      <p id="idle-name" class="big"></p>
+      <p class="hint">Assegna una playlist a questo schermo dal pannello admin.</p>
+    </div>
+  </section>
+
+  <div id="preview-badge" class="badge hidden">ANTEPRIMA</div>
+  <div id="net" class="net hidden" title="Connessione al server assente"></div>
+  <script src="../shared/render.js"></script>
+  <script src="player.js"></script>
+</body>
+</html>
