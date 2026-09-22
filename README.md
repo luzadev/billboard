@@ -67,11 +67,24 @@ Poi apri `https://billboard.tuodominio.it/admin/` (o `http://IP:8080/admin/`).
 Senza Docker: `npm install && ADMIN_PASSWORD=... npm start`. In alternativa copia `.env.example`
 in `.env` e compilalo.
 
+**Hosting condiviso / Apache già presente** (senza root): installa nella home con `git clone` e
+`npm install --omit=dev`, imposta in `.env` `PORT=8080` e `HOST=127.0.0.1`, avvia con uno script
+tenuto vivo da cron (`@reboot` e ogni 2 minuti) e inoltra il dominio con un `.htaccess` nella
+web root:
+
+```apache
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+RewriteRule ^(.*)$ http://127.0.0.1:8080/$1 [P,L]
+```
+
 | Variabile        | Descrizione                                                                      |
 |------------------|----------------------------------------------------------------------------------|
 | `ADMIN_PASSWORD` | Password del pannello (obbligatoria)                                             |
 | `SESSION_SECRET` | Segreto per i cookie di sessione; impostalo per non perdere il login ai riavvii  |
 | `PORT`           | Porta HTTP (default 8080)                                                        |
+| `HOST`           | Indirizzo di ascolto (default `0.0.0.0`; `127.0.0.1` dietro un reverse proxy locale) |
 | `DATA_DIR`       | Cartella dati (default `./data`, in Docker `/app/data`)                          |
 | `MAX_UPLOAD_MB`  | Limite upload per file (default 300)                                             |
 

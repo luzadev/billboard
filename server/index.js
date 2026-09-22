@@ -64,6 +64,7 @@ setInterval(() => {
   db.prepare('DELETE FROM devices WHERE paired = 0 AND last_seen < ?').run(cutoff);
 }, 3600e3).unref();
 
-app.listen(PORT, () => {
-  console.log(`BillBoard in ascolto su http://0.0.0.0:${PORT}  (dati in ${DATA_DIR})`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`BillBoard in ascolto su http://${HOST}:${PORT}  (dati in ${DATA_DIR})`);
 });
