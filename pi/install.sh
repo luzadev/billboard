@@ -30,8 +30,9 @@ cat > "$USER_HOME/.local/bin/billboard-kiosk.sh" <<KIOSK
 #!/usr/bin/env bash
 # Player BillBoard: Chromium in modalita' chiosco
 PLAYER_URL="$PLAYER_URL"
-# Evita doppio avvio
-if pgrep -f "billboard-kiosk-profile" >/dev/null; then exit 0; fi
+# Una sola istanza: labwc e l'autostart XDG possono lanciare lo script due volte
+exec 9>"/tmp/billboard-kiosk.lock"
+flock -n 9 || exit 0
 sleep 5
 command -v xset >/dev/null && { xset s off; xset -dpms; xset s noblank; } 2>/dev/null || true
 command -v unclutter >/dev/null && unclutter -idle 0.5 -root &
