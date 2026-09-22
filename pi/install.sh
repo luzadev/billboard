@@ -17,9 +17,14 @@ SUDO=""; [[ $EUID -ne 0 ]] && SUDO="sudo"
 APT="$SUDO apt-get -o DPkg::Lock::Timeout=600 -y -qq"
 
 echo "==> Installo Chromium e utility (utente chiosco: $RUN_USER)"
-$APT update
-$APT install chromium unclutter python3 network-manager 2>/dev/null || $APT install chromium-browser unclutter python3 network-manager
-CHROMIUM="$(command -v chromium || command -v chromium-browser)"
+if curl -fsI --max-time 8 https://deb.debian.org >/dev/null 2>&1; then
+  $APT update
+  $APT install chromium unclutter python3 network-manager 2>/dev/null || $APT install chromium-browser unclutter python3 network-manager || true
+else
+  echo "    nessuna connessione: uso i pacchetti già presenti nell'immagine (Chromium è incluso in Raspberry Pi OS Desktop)"
+fi
+CHROMIUM="$(command -v chromium || command -v chromium-browser || true)"
+[[ -n "$CHROMIUM" ]] || { echo "Chromium non trovato: serve Raspberry Pi OS Desktop oppure una connessione per installarlo" >&2; exit 1; }
 
 echo "==> Installo l'agente BillBoard (stato rete e hotspot di configurazione)"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo /nonexistent)"
@@ -32,12 +37,13 @@ $SUDO chmod 755 /usr/local/lib/billboard/billboard-agent.py
 $SUDO cp /usr/local/lib/billboard/captive.conf /etc/NetworkManager/dnsmasq-shared.d/billboard-captive.conf
 $SUDO cp /usr/local/lib/billboard/billboard-agent.service /etc/systemd/system/billboard-agent.service
 # server iniziale (l'agente lo puo' cambiare dal portale di configurazione)
-python3 - "$SERVER_URL" <<'PY' | $SUDO tee /etc/billboard/config.json >/dev/null
+python3 - "$SERVER_URL" "${BILLBOARD_COUNTRY:-}" <<'PY' | $SUDO tee /etc/billboard/config.json >/dev/null
 import json, sys, os
 cfg = {}
 try: cfg = json.load(open('/etc/billboard/config.json'))
 except Exception: pass
 cfg['server'] = sys.argv[1]
+if sys.argv[2]: cfg['country'] = sys.argv[2]
 print(json.dumps(cfg, indent=2))
 PY
 $SUDO systemctl daemon-reload

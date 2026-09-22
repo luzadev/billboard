@@ -162,7 +162,7 @@ cat <<YAML
   - [ sh, -c, "echo '$USER_NAME ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/010_$USER_NAME-nopasswd && chmod 0440 /etc/sudoers.d/010_$USER_NAME-nopasswd" ]
   - [ rfkill, unblock, wifi ]
   - [ sh, -c, "for f in /var/lib/systemd/rfkill/*:wlan; do echo 0 > \"\$f\"; done" ]
-  - [ sh, -c, "BILLBOARD_USER=$USER_NAME bash /usr/local/bin/billboard-install.sh '$SERVER' >/var/log/billboard-install.log 2>&1" ]
+  - [ sh, -c, "BILLBOARD_USER=$USER_NAME BILLBOARD_COUNTRY=$COUNTRY bash /usr/local/bin/billboard-install.sh '$SERVER' >/var/log/billboard-install.log 2>&1" ]
 power_state:
   mode: reboot
   timeout: 30

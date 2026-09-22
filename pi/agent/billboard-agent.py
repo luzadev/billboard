@@ -126,9 +126,14 @@ def scan_networks():
     return sorted(nets, key=lambda n: -n[1])[:20]
 
 
-def connect_wifi(ssid, password, country=None):
+def set_country(country=None):
+    country = country or load_config().get('country')
     if country:
         run(['iw', 'reg', 'set', country], timeout=10)
+
+
+def connect_wifi(ssid, password, country=None):
+    set_country(country)
     run(['rfkill', 'unblock', 'wifi'], timeout=10)
     run(['nmcli', 'connection', 'delete', ssid], timeout=15)   # rimpiazza un profilo con lo stesso nome
     cmd = ['nmcli', 'device', 'wifi', 'connect', ssid, 'ifname', 'wlan0']
@@ -142,6 +147,8 @@ def connect_wifi(ssid, password, country=None):
 
 def start_hotspot():
     ssid = state['hotspot_ssid']
+    set_country()
+    run(['rfkill', 'unblock', 'wifi'], timeout=10)
     run(['nmcli', 'connection', 'delete', HOTSPOT_CON], timeout=15)
     r = run(['nmcli', 'device', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', HOTSPOT_CON,
              'ssid', ssid, 'password', HOTSPOT_PASS], timeout=60)
