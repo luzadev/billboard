@@ -18,10 +18,33 @@ const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 300);
 const ALLOWED_MIME = /^(image\/(jpeg|png|gif|webp|avif|svg\+xml)|video\/(mp4|webm|ogg|quicktime))$/;
 
 function deviceView(d) {
-  const { token, ...rest } = d;
+  const { token, agent, ...rest } = d;
   const lastSeen = d.last_seen ? Date.parse(d.last_seen) : 0;
-  return { ...rest, online: Date.now() - lastSeen < ONLINE_WINDOW_MS };
+  const agentSeen = d.agent_seen ? Date.parse(d.agent_seen) : 0;
+  let info = null;
+  try { info = agent ? JSON.parse(agent) : null; } catch { info = null; }
+  return { ...rest, online: Date.now() - lastSeen < ONLINE_WINDOW_MS, agent: info, agent_online: Date.now() - agentSeen < 120e3 };
 }
+
+// Comandi remoti per l'agente sul Raspberry
+const COMMANDS = {
+  restart_player: () => ({}),
+  reboot: () => ({}),
+  restart_agent: () => ({}),
+  update: () => ({}),
+  set_server: p => {
+    const url = String(p?.url || '').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/[^\s/]+(:\d+)?$/.test(url)) throw new Error('URL del server non valido (es. https://billboard.tuodominio.it)');
+    return { url };
+  },
+  wifi_add: p => {
+    const ssid = String(p?.ssid || '').trim().slice(0, 64);
+    const password = String(p?.password || '');
+    if (!ssid) throw new Error('Nome rete mancante');
+    if (password && password.length < 8) throw new Error('La password Wi-Fi deve avere almeno 8 caratteri');
+    return { ssid, password, connect: !!p?.connect };
+  },
+};
 function bad(res, msg) { return res.status(400).json({ error: msg }); }
 function notFound(res) { return res.status(404).json({ error: 'Non trovato' }); }
 function cleanName(s, max = 80) { return String(s || '').trim().slice(0, max); }
@@ -76,6 +99,25 @@ router.patch('/devices/:id', (req, res) => {
   }
   if (updates.length) db.prepare(`UPDATE devices SET ${updates.join(', ')} WHERE id = ?`).run(...params, id);
   res.json(deviceView(db.prepare('SELECT * FROM devices WHERE id = ?').get(id)));
+});
+
+router.get('/devices/:id/commands', (req, res) => {
+  const rows = db.prepare('SELECT * FROM device_commands WHERE device_id = ? ORDER BY id DESC LIMIT 20').all(Number(req.params.id));
+  res.json(rows.map(r => ({ ...r, payload: r.payload ? JSON.parse(r.payload) : {} })));
+});
+
+router.post('/devices/:id/commands', (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.prepare('SELECT 1 FROM devices WHERE id = ? AND paired = 1').get(id)) return notFound(res);
+  const command = String(req.body?.command || '');
+  if (!COMMANDS[command]) return bad(res, 'Comando sconosciuto');
+  let payload;
+  try { payload = COMMANDS[command](req.body?.payload || {}); } catch (e) { return bad(res, e.message); }
+  // non accodare due volte lo stesso comando in attesa
+  db.prepare(`DELETE FROM device_commands WHERE device_id = ? AND command = ? AND status = 'pending'`).run(id, command);
+  const info = db.prepare('INSERT INTO device_commands (device_id, command, payload, created_at) VALUES (?, ?, ?, ?)')
+    .run(id, command, JSON.stringify(payload), now());
+  res.status(201).json({ ...db.prepare('SELECT * FROM device_commands WHERE id = ?').get(info.lastInsertRowid), payload });
 });
 
 router.delete('/devices/:id', (req, res) => {

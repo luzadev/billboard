@@ -37,13 +37,15 @@ $SUDO chmod 755 /usr/local/lib/billboard/billboard-agent.py
 $SUDO cp /usr/local/lib/billboard/captive.conf /etc/NetworkManager/dnsmasq-shared.d/billboard-captive.conf
 $SUDO cp /usr/local/lib/billboard/billboard-agent.service /etc/systemd/system/billboard-agent.service
 # server iniziale (l'agente lo puo' cambiare dal portale di configurazione)
-python3 - "$SERVER_URL" "${BILLBOARD_COUNTRY:-}" <<'PY' | $SUDO tee /etc/billboard/config.json >/dev/null
+python3 - "$SERVER_URL" "${BILLBOARD_COUNTRY:-}" "$RUN_USER" <<'PY' | $SUDO tee /etc/billboard/config.json >/dev/null
 import json, sys, os
 cfg = {}
 try: cfg = json.load(open('/etc/billboard/config.json'))
 except Exception: pass
+if cfg.get('server') != sys.argv[1]: cfg.pop('token', None)   # server diverso: nuova registrazione
 cfg['server'] = sys.argv[1]
 if sys.argv[2]: cfg['country'] = sys.argv[2]
+cfg['user'] = sys.argv[3]
 print(json.dumps(cfg, indent=2))
 PY
 $SUDO systemctl daemon-reload

@@ -40,7 +40,22 @@
   function hide(el) { el.classList.add('hidden'); }
   function schedule(seconds) { clearTimeout(pollTimer); pollTimer = setTimeout(poll, seconds * 1000); }
 
+  // Su un Raspberry con l'agente BillBoard, player e agente condividono lo stesso token
+  const AGENT = 'http://127.0.0.1/token';
+  async function agentFetch(path, body) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 1500);
+    try {
+      const r = await fetch(AGENT + path, { signal: c.signal, cache: 'no-store', method: body ? 'POST' : 'GET',
+        body: body ? JSON.stringify(body) : undefined });
+      return r.ok ? await r.json() : null;
+    } catch { return null; } finally { clearTimeout(t); }
+  }
+  async function agentToken() { const j = await agentFetch(''); return j && j.token ? j.token : null; }
+
   async function register() {
+    const fromAgent = await agentToken();
+    if (fromAgent) { token = fromAgent; safeSet(TOKEN_KEY, token); return; }
     const r = await fetch('/api/device/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ screen: `${screen.width}x${screen.height}` }),
@@ -48,6 +63,7 @@
     if (!r.ok) throw new Error('register failed');
     token = (await r.json()).token;
     safeSet(TOKEN_KEY, token);
+    agentFetch('', { token });   // se c'e' un agente senza token, glielo consegna
   }
 
   // In anteprima lo stage assume il formato della playlist (16:9 o 9:16) centrato nella finestra
@@ -85,9 +101,10 @@
         headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
       });
       if (r.status === 401) {
+        agentFetch('/invalid', { token });   // l'agente scarta il token e si registra di nuovo
         safeDel(TOKEN_KEY); token = null; currentVersion = null;
         stopPlayback();
-        return schedule(2);
+        return schedule(3);
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const s = await r.json();

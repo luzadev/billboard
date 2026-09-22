@@ -20,7 +20,13 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+AGENT_VERSION = '1.1'
+REPORT_EVERY_S = 30
+RAW_INSTALLER = 'https://raw.githubusercontent.com/luzadev/billboard/main/pi/install.sh'
 
 CONFIG_DIR = '/etc/billboard'
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
@@ -42,6 +48,8 @@ state = {
     'message': '',
     'offline_since': None,
     'lock': threading.Lock(),
+    'token': '',
+    'token_lock': threading.Lock(),
 }
 
 
@@ -199,6 +207,158 @@ def stop_hotspot():
     run(['nmcli', 'connection', 'delete', HOTSPOT_CON], timeout=15)
 
 
+# ---------- dialogo con il server BillBoard ----------
+def api(path, data=None, token=None, timeout=15):
+    url = state['server'].rstrip('/') + path
+    body = json.dumps(data).encode() if data is not None else None
+    req = urllib.request.Request(url, data=body, method='POST' if body is not None else 'GET')
+    req.add_header('Content-Type', 'application/json')
+    if token:
+        req.add_header('Authorization', 'Bearer ' + token)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.status, json.loads(r.read().decode() or '{}')
+
+
+def set_token(token):
+    with state['token_lock']:
+        state['token'] = token or ''
+        cfg = load_config()
+        if token:
+            cfg['token'] = token
+        else:
+            cfg.pop('token', None)
+        save_config(cfg)
+
+
+def ensure_token():
+    """Registra questo dispositivo sul server se non ha ancora un token (lo stesso usato dal player)."""
+    if state['token'] or not state['server']:
+        return state['token']
+    try:
+        st, j = api('/api/device/register', {'screen': ''})
+        if j.get('token'):
+            set_token(j['token'])
+            log('dispositivo registrato sul server (codice di associazione: %s)' % j.get('code'))
+    except Exception as e:
+        log(f'registrazione fallita: {e}')
+    return state['token']
+
+
+def read_first(path, default=''):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except Exception:
+        return default
+
+
+def telemetry():
+    info = {'hostname': state['hostname'], 'ip': ip_address(), 'agent_version': AGENT_VERSION, 'mode': state['mode'],
+            'user': load_config().get('user', '')}
+    try:
+        info['uptime'] = int(float(read_first('/proc/uptime', '0').split()[0]))
+    except Exception:
+        pass
+    t = read_first('/sys/class/thermal/thermal_zone0/temp')
+    if t.isdigit():
+        info['cpu_temp'] = round(int(t) / 1000, 1)
+    m = re.search(r'PRETTY_NAME="([^"]+)"', read_first('/etc/os-release'))
+    if m:
+        info['os'] = m.group(1)
+    try:
+        info['disk_free_mb'] = shutil.disk_usage('/').free // (1024 * 1024)
+    except Exception:
+        pass
+    m = re.search(r'MemAvailable:\s+(\d+)', read_first('/proc/meminfo'))
+    if m:
+        info['mem_free_mb'] = int(m.group(1)) // 1024
+    r = run(['nmcli', '-t', '-f', 'ACTIVE,SSID,SIGNAL', 'device', 'wifi'], timeout=15)
+    for line in (r.stdout or '').splitlines():
+        if line.startswith('yes:'):
+            parts = line.split(':')
+            info['wifi_ssid'] = parts[1]
+            info['wifi_signal'] = parts[2] if len(parts) > 2 else ''
+            break
+    info['eth'] = 'connesso' if ethernet_carrier() else 'no'
+    r = run(['pgrep', '-f', 'billboard-kiosk-profile'], timeout=10)
+    info['player_running'] = 'yes' if r.returncode == 0 else 'no'
+    return info
+
+
+def execute(cmd):
+    name, p = cmd.get('command'), cmd.get('payload') or {}
+    log(f'comando {name} {p if name != "wifi_add" else {"ssid": p.get("ssid")}}')
+    if name == 'restart_player':
+        restart_kiosk()
+        return True, 'player riavviato'
+    if name == 'restart_agent':
+        threading.Timer(2, lambda: os._exit(0)).start()
+        return True, 'agente in riavvio'
+    if name == 'reboot':
+        threading.Timer(3, lambda: run(['systemctl', 'reboot'], timeout=30)).start()
+        return True, 'riavvio del Raspberry tra 3 secondi'
+    if name == 'set_server':
+        url = p.get('url', '').rstrip('/')
+        if not valid_server(url):
+            return False, 'URL non valido'
+        cfg = load_config()
+        cfg['server'] = url
+        save_config(cfg)
+        state['server'] = url
+        set_token('')            # sul nuovo server serve una nuova registrazione
+        threading.Timer(2, restart_kiosk).start()
+        return True, f'server impostato su {url}; lo schermo va riassociato sul nuovo pannello'
+    if name == 'wifi_add':
+        ssid, password = p.get('ssid', ''), p.get('password', '')
+        wifi_prepare()
+        run(['nmcli', 'connection', 'delete', ssid], timeout=15)
+        add = ['nmcli', 'connection', 'add', 'type', 'wifi', 'ifname', 'wlan0', 'con-name', ssid, 'ssid', ssid, 'autoconnect', 'yes']
+        if password:
+            add += ['wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk', password]
+        r = run(add, timeout=30)
+        if r.returncode != 0:
+            return False, (r.stderr or r.stdout).strip()
+        if p.get('connect'):
+            r2 = run(['nmcli', 'connection', 'up', ssid], timeout=90)
+            return r2.returncode == 0, ('collegato a ' + ssid) if r2.returncode == 0 else (r2.stderr or r2.stdout).strip()
+        return True, f'rete {ssid} salvata: verra\' usata quando disponibile'
+    if name == 'update':
+        user = load_config().get('user') or (subprocess.getoutput('getent passwd 1000').split(':') or [''])[0]
+        r = run(['bash', '-c', f'curl -fsSL {RAW_INSTALLER} | BILLBOARD_USER={user} BILLBOARD_COUNTRY={load_config().get("country", "")} bash -s {state["server"]}'], timeout=900)
+        out = ((r.stdout or '') + (r.stderr or '')).strip()[-1500:]
+        if r.returncode == 0:
+            threading.Timer(3, lambda: os._exit(0)).start()   # riavvia l'agente con la nuova versione
+            threading.Timer(2, restart_kiosk).start()
+        return r.returncode == 0, out
+    return False, 'comando sconosciuto'
+
+
+def reporter():
+    """Ogni 30 s manda la telemetria al server ed esegue i comandi in coda."""
+    while True:
+        try:
+            if state['server'] and state['mode'] == 'online':
+                token = ensure_token()
+                if token:
+                    try:
+                        st, j = api('/api/device/agent', {'info': telemetry()}, token=token)
+                        for cmd in j.get('commands', []):
+                            ok, out = execute(cmd)
+                            try:
+                                api('/api/device/agent/result', {'id': cmd['id'], 'ok': ok, 'output': out}, token=token)
+                            except Exception as e:
+                                log(f'invio esito fallito: {e}')
+                    except urllib.error.HTTPError as e:
+                        if e.code == 401:
+                            log('token non piu\' valido sul server: nuova registrazione')
+                            set_token('')
+                        else:
+                            log(f'report fallito: HTTP {e.code}')
+        except Exception as e:
+            log(f'errore nel reporter: {e}')
+        time.sleep(REPORT_EVERY_S)
+
+
 # ---------- file di configurazione sulla partizione di boot ----------
 def apply_boot_file():
     for path in BOOT_FILES:
@@ -329,9 +489,19 @@ class Handler(BaseHTTPRequestHandler):
     def _local(self):
         return self.client_address[0] in ('127.0.0.1', '::1')
 
+    CORS = {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Private-Network': 'true',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type'}
+
+    def do_OPTIONS(self):
+        self._send(204, '', headers=self.CORS)
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         if self._local():
+            if path == '/token':
+                # il player (Chromium su questo Pi) usa lo stesso token dell'agente
+                return self._send(200, json.dumps({'token': ensure_token(), 'server': state['server'], 'agent': AGENT_VERSION}),
+                                  'application/json', headers=self.CORS)
             if path == '/setup':
                 return self._send(200, setup_form())
             body = screen_page()
@@ -349,6 +519,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
+        if path in ('/token', '/token/invalid') and self._local():
+            n = int(self.headers.get('Content-Length') or 0)
+            try:
+                body = json.loads(self.rfile.read(n).decode() or '{}')
+            except Exception:
+                body = {}
+            tok = str(body.get('token') or '')[:128]
+            if path == '/token' and tok and not state['token']:
+                set_token(tok)                   # il player aveva gia' un token: lo adotta l'agente
+                log('token ricevuto dal player')
+            if path == '/token/invalid' and tok and tok == state['token']:
+                set_token('')
+                ensure_token()
+            return self._send(200, json.dumps({'token': state['token']}), 'application/json', headers=self.CORS)
         if path != '/apply':
             return self._redirect('/setup')
         if not self._local() and state['mode'] != 'setup' and not (state['mode'] == 'online' and not state['server']):
@@ -451,6 +635,7 @@ def monitor():
 def main():
     cfg = load_config()
     state['server'] = cfg.get('server', '')
+    state['token'] = cfg.get('token', '')
     suffix = cfg.get('hotspot_suffix') or secrets.token_hex(2).upper()
     if 'hotspot_suffix' not in cfg:
         cfg['hotspot_suffix'] = suffix
@@ -462,6 +647,7 @@ def main():
     state['mode'] = 'offline'
     state['offline_since'] = time.time()
     threading.Thread(target=monitor, daemon=True).start()
+    threading.Thread(target=reporter, daemon=True).start()
     log(f'agente in ascolto sulla porta {PORT}, server: {state["server"] or "(nessuno)"}, hotspot: {state["hotspot_ssid"]}')
     ThreadingHTTPServer(('0.0.0.0', PORT), Handler).serve_forever()
 

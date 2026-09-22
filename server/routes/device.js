@@ -63,4 +63,36 @@ router.get('/state', requireDevice, (req, res) => {
   res.json({ paired: true, name: d.name, poll_interval: 15, playlist, app_version: res.locals.app_version });
 });
 
+// ---------- Agente sul Raspberry: telemetria e comandi ----------
+const AGENT_KEYS = ['hostname', 'ip', 'wifi_ssid', 'wifi_signal', 'uptime', 'cpu_temp', 'os', 'agent_version',
+  'disk_free_mb', 'mem_free_mb', 'player_running', 'user', 'eth', 'mode'];
+
+router.post('/agent', requireDevice, (req, res) => {
+  const d = req.device;
+  const info = {};
+  const src = req.body?.info && typeof req.body.info === 'object' ? req.body.info : {};
+  for (const k of AGENT_KEYS) if (src[k] !== undefined && src[k] !== null) info[k] = String(src[k]).slice(0, 200);
+  const t = now();
+  db.prepare('UPDATE devices SET agent = ?, agent_seen = ? WHERE id = ?').run(JSON.stringify(info), t, d.id);
+  const pending = db.prepare(`SELECT id, command, payload FROM device_commands WHERE device_id = ? AND status = 'pending' ORDER BY id`).all(d.id);
+  if (pending.length) {
+    const mark = db.prepare(`UPDATE device_commands SET status = 'sent', sent_at = ? WHERE id = ?`);
+    for (const c of pending) mark.run(t, c.id);
+  }
+  res.json({
+    commands: pending.map(c => ({ id: c.id, command: c.command, payload: c.payload ? JSON.parse(c.payload) : {} })),
+    poll_interval: 30,
+    paired: !!d.paired,
+  });
+});
+
+router.post('/agent/result', requireDevice, (req, res) => {
+  const id = Number(req.body?.id);
+  const ok = !!req.body?.ok;
+  const output = String(req.body?.output || '').slice(0, 4000);
+  const info = db.prepare(`UPDATE device_commands SET status = ?, result = ?, done_at = ? WHERE id = ? AND device_id = ?`)
+    .run(ok ? 'done' : 'failed', output, now(), id, req.device.id);
+  res.json({ ok: info.changes > 0 });
+});
+
 module.exports = router;

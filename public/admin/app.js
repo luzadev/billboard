@@ -141,11 +141,12 @@
       if (document.activeElement && $('#devices-grid').contains(document.activeElement)) return;
       $('#devices-grid').innerHTML = devices.map(d => `<div class="dev-card ${d.online ? 'online' : ''}" data-id="${d.id}">
         <div class="dev-top"><span class="status ${d.online ? 'on' : ''}">${d.online ? 'Online' : 'Offline'}</span>
-          <button class="btn icon ghost dev-delete" title="Rimuovi schermo" aria-label="Rimuovi schermo">${icon('trash')}</button></div>
+          <div class="dev-actions">${d.agent ? `<button class="btn sm dev-manage">${icon('sliders')}Gestisci</button>` : ''}
+          <button class="btn icon ghost dev-delete" title="Rimuovi schermo" aria-label="Rimuovi schermo">${icon('trash')}</button></div></div>
         <input class="dev-name" value="${esc(d.name)}" maxlength="80" title="Clicca per rinominare">
         <label>Playlist<select class="dev-playlist">${playlistOptions(d.playlist_id)}</select></label>
         ${orientationWarning(d)}
-        <div class="dev-meta"><span>${ORIENT_SVG[screenOrientation(d.screen)] || icon('screen')}${esc(d.screen || '—')}</span><span>${icon('clock')}${ago(d.last_seen)}</span><span>${icon('network')}${esc(d.ip || '')}</span></div>
+        <div class="dev-meta"><span>${ORIENT_SVG[screenOrientation(d.screen)] || icon('screen')}${esc(d.screen || '—')}</span><span>${icon('clock')}${ago(d.last_seen)}</span><span>${icon('network')}${esc(d.ip || '')}</span>${d.agent ? `<span title="Agente sul Raspberry">${icon('monitor')}${d.agent.wifi_ssid ? esc(d.agent.wifi_ssid) + (d.agent.wifi_signal ? ' ' + d.agent.wifi_signal + '%' : '') : d.agent.eth === 'connesso' ? 'Ethernet' : 'Pi'}${d.agent.cpu_temp ? ' · ' + d.agent.cpu_temp + '°C' : ''}</span>` : ''}</div>
       </div>`).join('');
       $('#devices-empty').classList.toggle('hidden', !!devices.length);
     } catch {}
@@ -177,11 +178,75 @@
     e.target.blur();
   });
   $('#devices-grid').addEventListener('click', async e => {
+    const mb = e.target.closest('.dev-manage');
+    if (mb) return openManage(Number(mb.closest('.dev-card').dataset.id));
     if (!e.target.closest('.dev-delete')) return;
     const card = e.target.closest('.dev-card');
     if (!confirm(`Rimuovere "${card.querySelector('.dev-name').value}"? Lo schermo tornerà a mostrare un codice.`)) return;
     await api(`/admin/devices/${card.dataset.id}`, { method: 'DELETE' });
     toast('Schermo rimosso'); loadDevices();
+  });
+
+  // ---------- Gestione remota del Raspberry ----------
+  let manageId = null, managePoll = null;
+  const CMD_LABEL = { restart_player: 'Riavvio player', reboot: 'Riavvio Raspberry', restart_agent: 'Riavvio agente', update: 'Aggiornamento software', set_server: 'Cambio server', wifi_add: 'Rete Wi‑Fi' };
+  const STATUS_LABEL = { pending: 'in coda', sent: 'in esecuzione', done: 'eseguito', failed: 'fallito' };
+  function fmtUptime(s) { s = Number(s) || 0; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? `${d}g ${h}h` : h ? `${h}h ${m}m` : `${m} min`; }
+  async function openManage(id) {
+    manageId = id;
+    $('#manage').classList.remove('hidden');
+    await renderManage();
+    clearInterval(managePoll); managePoll = setInterval(renderManage, 5000);
+  }
+  $('#manage [data-close]').addEventListener('click', () => { clearInterval(managePoll); manageId = null; });
+  async function renderManage() {
+    if (manageId === null) return;
+    const [devices, cmds] = await Promise.all([api('/admin/devices'), api(`/admin/devices/${manageId}/commands`)]);
+    const d = devices.find(x => x.id === manageId); if (!d) { $('#manage').classList.add('hidden'); return; }
+    const a = d.agent || {};
+    $('#manage-title').textContent = d.name;
+    const info = [
+      ['Stato', d.online ? 'Online' : 'Offline'], ['Agente', d.agent_online ? 'attivo · v' + (a.agent_version || '?') : 'non raggiungibile (' + ago(d.agent_seen) + ')'],
+      ['Hostname', a.hostname], ['IP', a.ip || d.ip], ['Wi‑Fi', a.wifi_ssid ? `${a.wifi_ssid} · ${a.wifi_signal || '?'}%` : '—'], ['Ethernet', a.eth === 'connesso' ? 'collegato' : 'no'],
+      ['Acceso da', a.uptime ? fmtUptime(a.uptime) : '—'], ['Temperatura CPU', a.cpu_temp ? a.cpu_temp + ' °C' : '—'],
+      ['Sistema', a.os], ['Spazio libero', a.disk_free_mb ? Math.round(a.disk_free_mb / 1024 * 10) / 10 + ' GB' : '—'], ['RAM libera', a.mem_free_mb ? a.mem_free_mb + ' MB' : '—'],
+      ['Player', a.player_running === 'yes' ? 'in esecuzione' : 'fermo'], ['Risoluzione', d.screen], ['Ultimo contatto', ago(d.last_seen)],
+    ];
+    const cmdList = cmds.length ? cmds.map(c => `<li><span class="st ${c.status}">${STATUS_LABEL[c.status] || c.status}</span>
+        <span>${CMD_LABEL[c.command] || c.command}${c.payload && c.payload.url ? ' → ' + esc(c.payload.url) : ''}${c.payload && c.payload.ssid ? ' → ' + esc(c.payload.ssid) : ''}<div class="out">${esc((c.result || '').slice(-300))}</div></span>
+        <span class="muted small">${ago(c.created_at)}</span></li>`).join('') : '<li class="muted">Nessun comando inviato.</li>';
+    // conserva i valori digitati nei campi se il pannello si ridisegna
+    const keep = {}; $$('#manage-body input').forEach(i => keep[i.name] = i.value);
+    $('#manage-body').innerHTML = `
+      <div class="info-grid">${info.map(([k, v]) => `<div class="info"><div class="k">${k}</div><div class="v">${esc(v || '—')}</div></div>`).join('')}</div>
+      <div class="manage-section"><h4>Azioni</h4><div class="cmd-grid">
+        <button class="btn" data-cmd="restart_player">${icon('play')}Riavvia player</button>
+        <button class="btn" data-cmd="reboot">${icon('replace')}Riavvia Raspberry</button>
+        <button class="btn" data-cmd="update">${icon('upload')}Aggiorna software</button>
+        <button class="btn" data-cmd="restart_agent">${icon('sliders')}Riavvia agente</button>
+      </div></div>
+      <div class="manage-section"><h4>Rete Wi‑Fi per una prossima sede</h4>
+        <form class="row" data-form="wifi_add"><input name="ssid" placeholder="Nome rete" value="${esc(keep.ssid || '')}" required><input name="password" type="password" placeholder="Password (vuota se aperta)" value="${esc(keep.password || '')}">
+        <label class="check" style="flex:0 0 auto"><input type="checkbox" name="connect"> Collega subito</label><button class="btn primary" type="submit">Salva sul Pi</button></form>
+        <p class="muted small">La rete viene memorizzata sul Raspberry e usata automaticamente quando quella attuale non è disponibile.</p></div>
+      <div class="manage-section"><h4>Cambia server</h4>
+        <form class="row" data-form="set_server"><input name="url" placeholder="https://billboard.tuodominio.it" value="${esc(keep.url || '')}" required><button class="btn primary" type="submit">Applica</button></form>
+        <p class="muted small">Il Raspberry si collegherà al nuovo server e dovrà essere associato di nuovo là.</p></div>
+      <div class="manage-section"><h4>Comandi recenti</h4><ul class="cmd-list">${cmdList}</ul></div>`;
+  }
+  $('#manage-body').addEventListener('click', async e => {
+    const b = e.target.closest('[data-cmd]'); if (!b) return;
+    if (b.dataset.cmd === 'reboot' && !confirm('Riavviare il Raspberry? Lo schermo resterà nero per circa un minuto.')) return;
+    await api(`/admin/devices/${manageId}/commands`, { method: 'POST', body: { command: b.dataset.cmd } });
+    toast('Comando inviato: verrà eseguito entro 30 secondi'); renderManage();
+  });
+  $('#manage-body').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target; const payload = {};
+    new FormData(f).forEach((v, k) => payload[k] = v);
+    if (f.dataset.form === 'wifi_add') payload.connect = !!f.querySelector('[name=connect]').checked;
+    await api(`/admin/devices/${manageId}/commands`, { method: 'POST', body: { command: f.dataset.form, payload } });
+    toast('Comando inviato: verrà eseguito entro 30 secondi'); f.reset(); renderManage();
   });
 
   // ---------- Playlist ----------

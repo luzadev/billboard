@@ -60,6 +60,23 @@ db.exec(`
 // Migrazioni leggere
 const cols = db.prepare('PRAGMA table_info(playlist_items)').all().map(c => c.name);
 if (!cols.includes('options')) db.exec('ALTER TABLE playlist_items ADD COLUMN options TEXT');
+const dcols = db.prepare('PRAGMA table_info(devices)').all().map(c => c.name);
+if (!dcols.includes('agent')) db.exec('ALTER TABLE devices ADD COLUMN agent TEXT');
+if (!dcols.includes('agent_seen')) db.exec('ALTER TABLE devices ADD COLUMN agent_seen TEXT');
+db.exec(`
+  CREATE TABLE IF NOT EXISTS device_commands (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    command TEXT NOT NULL,
+    payload TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    result TEXT,
+    created_at TEXT NOT NULL,
+    sent_at TEXT,
+    done_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_commands_device ON device_commands(device_id, status);
+`);
 const pcols = db.prepare('PRAGMA table_info(playlists)').all().map(c => c.name);
 if (!pcols.includes('orientation')) db.exec("ALTER TABLE playlists ADD COLUMN orientation TEXT NOT NULL DEFAULT 'landscape'");
 
