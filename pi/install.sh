@@ -39,7 +39,7 @@ PROFILE="\$HOME/.config/billboard-kiosk-profile"
 # Rimuove il flag di "chiusura anomala" per evitare il banner di ripristino
 sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]*"/"exit_type":"Normal"/' "\$PROFILE/Default/Preferences" 2>/dev/null || true
 while true; do
-  "$CHROMIUM" --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble \\
+  "$CHROMIUM" --kiosk --password-store=basic --noerrdialogs --disable-infobars --disable-session-crashed-bubble \\
     --autoplay-policy=no-user-gesture-required --check-for-update-interval=31536000 \\
     --disable-features=TranslateUI --overscroll-history-navigation=0 --disable-pinch \\
     --user-data-dir="\$PROFILE" --start-fullscreen "\$PLAYER_URL"
