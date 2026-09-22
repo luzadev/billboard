@@ -28,8 +28,9 @@ riproducono le playlist assegnate.
 - **Testi** con 10 caratteri (Google Fonts), dimensione, colori, allineamento, scorrimento nelle
   quattro direzioni, rotazione per le fasce laterali.
 - **Widget televisivi** sovrapponibili a qualsiasi contenuto: testi liberi, terzo inferiore
-  (etichetta, nome, ruolo), barra notizie con testata, categoria, orologio e titoli scorrevoli,
-  orologio/data in tempo reale, logo. Tutto posizionabile e ridimensionabile trascinandolo nell'anteprima.
+  (etichetta, nome, ruolo), barra notizie con testata, categoria, orologio e titoli scorrevoli
+  **anche da feed RSS/Atom** (aggiornati ogni 5 minuti), orologio/data in tempo reale, logo.
+  Tutto posizionabile e ridimensionabile trascinandolo nell'anteprima.
 - **Immagini e video** ridimensionabili e posizionabili sullo schermo (intero o riempi).
 - **Anteprima dal vivo** nel pannello e anteprima dell'intera playlist a schermo intero.
 - **Stato schermi**: online/offline, risoluzione, orientamento, ultimo contatto, IP; avviso se la
@@ -110,6 +111,12 @@ Admin (cookie di sessione, login su `POST /api/auth/login`):
 | GET/POST | /api/admin/media                  | Lista / upload multipart `files[]`                           |
 | DELETE | /api/admin/media/:id                | Elimina file                                                 |
 
+Feed (sessione admin oppure token dispositivo):
+
+| Metodo | Percorso   | Descrizione                                                        |
+|--------|------------|--------------------------------------------------------------------|
+| GET    | /api/feed  | `?url=<rss>&max=10` → `{titles, fetched_at}`, cache 5 min, solo host pubblici |
+
 Player (token Bearer):
 
 | Metodo | Percorso              | Descrizione                                              |
@@ -128,6 +135,7 @@ server/            Express + SQLite (better-sqlite3)
   style.js         validazione delle opzioni grafiche e dei widget
   routes/admin.js  dispositivi, playlist, media
   routes/device.js registrazione e stato player
+  routes/feed.js   lettura feed RSS/Atom con cache per la barra notizie
 public/admin/      pannello di controllo (HTML/CSS/JS senza build)
 public/player/     player a schermo intero (/player/?preview=<id> per l'anteprima)
 public/shared/     motore di rendering condiviso tra player e anteprima

@@ -129,7 +129,7 @@ ognuno con posizione e stile propri. Valgono per immagini, video, testi e pagine
 |--------|---------|------------------|
 | **Testo** | Una scritta libera, fissa o scorrevole | vedi sezione 5 |
 | **Terzo inferiore** | La fascia dei telegiornali con etichetta (es. "IN DIRETTA"), nome e ruolo | etichetta, titolo, sottotitolo, colori, sfumatura, immagine di sfondo |
-| **Barra notizie** | Barra con testata, categoria, orologio e titoli che scorrono | testata, categoria, notizie (una per riga), velocità, orologio sì/no |
+| **Barra notizie** | Barra con testata, categoria, orologio e titoli che scorrono | testata, categoria, feed RSS, notizie scritte a mano (una per riga), velocità, orologio sì/no |
 | **Orologio** | Ora e/o data aggiornate ogni secondo | formato (ora, ora con secondi, data, data e ora), dimensione, colori |
 | **Logo** | Un'immagine in un angolo | immagine dalla libreria, opacità |
 
@@ -140,7 +140,11 @@ Suggerimenti:
 - Per il logo usa un **PNG con sfondo trasparente**.
 - Come sfondo del terzo inferiore o della barra puoi usare una grafica tua (per esempio un
   gradiente "breaking news") al posto dei colori.
-- Le notizie nella barra le scrivi tu; una notizia per riga, vengono separate automaticamente.
+- **Notizie da un feed RSS**: incolla l'indirizzo del feed nel campo "Feed RSS" della barra
+  (per esempio `https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml`). Il pannello verifica
+  subito il feed e mostra i primi titoli; sullo schermo i titoli si aggiornano ogni 5 minuti.
+  Scegli quanti titoli mostrare con "Titoli dal feed". Le notizie scritte a mano vengono mostrate
+  dopo i titoli del feed, oppure da sole se il feed non risponde. Funzionano i feed RSS e Atom.
 
 ## 8. Schermi verticali e orientamento
 
@@ -187,6 +191,11 @@ salvataggio servono fino a 15 secondi.
 **Una pagina web resta bianca.**
 Il sito non permette di essere incorporato in altre pagine. Non c'è soluzione lato BillBoard:
 usa un'altra fonte o un'immagine.
+
+**Il feed RSS non viene letto.**
+Il pannello indica il motivo sotto il campo: indirizzo errato, sito che non risponde o pagina che
+non è un feed. Cerca sul sito della testata il link "RSS" (di solito termina con `.xml` o `/rss`).
+Per sicurezza non sono ammessi feed su indirizzi privati o locali.
 
 **I video non partono o scattano.**
 Riduci la risoluzione o il bitrate (1080p, H.264). Evita formati esotici.

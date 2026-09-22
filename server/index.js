@@ -18,6 +18,7 @@ const { db, UPLOAD_DIR, DATA_DIR } = require('./db');
 const auth = require('./auth');
 const adminRoutes = require('./routes/admin');
 const deviceRoutes = require('./routes/device');
+const feedRoutes = require('./routes/feed');
 
 const PORT = Number(process.env.PORT || 8080);
 
@@ -44,6 +45,7 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', auth.router);
 app.use('/api/admin', adminRoutes);
 app.use('/api/device', deviceRoutes);
+app.use('/api/feed', feedRoutes);
 
 app.use('/media', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true, index: false }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));

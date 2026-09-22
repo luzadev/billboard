@@ -25,7 +25,7 @@ window.BBRender = (() => {
     lowerthird: { kind: 'lowerthird', x: 4, y: 72, w: 62, h: 15, label: 'IN DIRETTA', title: 'Nome Cognome', subtitle: 'Ruolo o descrizione',
       font: 'Inter', color: '#ffffff', labelBg: '#d61f26', labelColor: '#ffffff', bg: '#12307a', bg2: '#071240', bgOpacity: 94, bgImage: null },
     ticker: { kind: 'ticker', x: 0, y: 91, w: 100, h: 7, label: 'NEWS', tag: '', text: 'Prima notizia\nSeconda notizia\nTerza notizia',
-      font: 'Inter', color: '#ffffff', labelBg: '#d61f26', labelColor: '#ffffff', tagBg: '#1d4ed8', bg: '#0a1a3f', bgOpacity: 96, speed: 120, showClock: true, bgImage: null },
+      font: 'Inter', color: '#ffffff', labelBg: '#d61f26', labelColor: '#ffffff', tagBg: '#1d4ed8', bg: '#0a1a3f', bgOpacity: 96, speed: 120, showClock: true, bgImage: null, feedUrl: '', feedMax: 10 },
     clock: { kind: 'clock', x: 85, y: 3, w: 12, h: 8, format: 'time', font: 'Inter', size: 3, color: '#ffffff', bg: '#000000', bgOpacity: 45, align: 'center', bold: true },
     logo: { kind: 'logo', x: 85, y: 3, w: 12, h: 10, src: '', opacity: 100 },
   };
@@ -62,6 +62,14 @@ window.BBRender = (() => {
     return { el: layer, start() {}, stop() {} };
   }
 
+  // Chi ospita il renderer (player o pannello) puo' sostituirlo per aggiungere l'autenticazione
+  let feedFetcher = async (url, max) => {
+    const r = await fetch(`/api/feed?url=${encodeURIComponent(url)}&max=${max}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error('feed');
+    return (await r.json()).titles;
+  };
+  const FEED_REFRESH_MS = 5 * 60e3;
+
   function buildTicker(st, container) {
     const layer = el('bb-tk'); applyBox(layer, st);
     const H = container.clientHeight * st.h / 100;
@@ -71,20 +79,38 @@ window.BBRender = (() => {
     if (st.label) { const l = el('bb-tk-label', st.label); Object.assign(l.style, { background: st.labelBg, color: st.labelColor }); layer.appendChild(l); }
     if (st.tag) { const t = el('bb-tk-tag', st.tag); t.style.background = st.tagBg; layer.appendChild(t); }
     const track = el('bb-tk-track'); const text = el('bb-tk-text');
-    const lines = String(st.text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+    const manual = String(st.text || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+    let lines = manual.slice();
     text.textContent = lines.join('      •      ');
     track.appendChild(text); layer.appendChild(track);
-    let anim = null, stopClock = null;
+    let anim = null, stopClock = null, feedTimer = null, running = false;
+    const animate = () => {
+      if (anim) anim.cancel(); anim = null;
+      if (!lines.length || !running) return;
+      const w = text.scrollWidth, cw = track.clientWidth;
+      anim = text.animate([{ transform: `translateX(${cw}px)` }, { transform: `translateX(${-w}px)` }],
+        { duration: (cw + w) / (st.speed || 120) * 1000, iterations: Infinity, easing: 'linear' });
+    };
+    // Feed RSS: i titoli del feed vengono prima, le notizie scritte a mano dopo (o da sole se il feed fallisce)
+    const loadFeed = async () => {
+      if (!st.feedUrl) return;
+      try {
+        const titles = await feedFetcher(st.feedUrl, st.feedMax || 10);
+        if (!running || !titles.length) return;
+        lines = titles.concat(manual);
+        text.textContent = lines.join('      •      ');
+        animate();
+      } catch { /* resta il testo manuale */ }
+    };
     return {
       el: layer,
       start() {
+        running = true;
         if (clockEl) stopClock = liveClock(clockEl, 'time');
-        if (!lines.length) return;
-        const w = text.scrollWidth, cw = track.clientWidth;
-        anim = text.animate([{ transform: `translateX(${cw}px)` }, { transform: `translateX(${-w}px)` }],
-          { duration: (cw + w) / (st.speed || 120) * 1000, iterations: Infinity, easing: 'linear' });
+        animate();
+        if (st.feedUrl) { loadFeed(); feedTimer = setInterval(loadFeed, FEED_REFRESH_MS); }
       },
-      stop() { if (anim) anim.cancel(); if (stopClock) stopClock(); },
+      stop() { running = false; if (anim) anim.cancel(); if (stopClock) stopClock(); clearInterval(feedTimer); },
     };
   }
 
@@ -218,5 +244,6 @@ window.BBRender = (() => {
     };
   }
 
-  return { FONTS, FULL_BOX, TEXT_DEFAULTS, OVERLAY_DEFAULTS, WIDGET_DEFAULTS, WIDGET_LABELS, loadFonts, build };
+  return { FONTS, FULL_BOX, TEXT_DEFAULTS, OVERLAY_DEFAULTS, WIDGET_DEFAULTS, WIDGET_LABELS, loadFonts, build,
+    setFeedFetcher(fn) { feedFetcher = fn; } };
 })();

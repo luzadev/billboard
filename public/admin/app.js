@@ -343,7 +343,10 @@
       <label>Testata<input value="${esc(ov.label)}" maxlength="40" data-path="${p}label" placeholder="NEWS"></label>
       <label>Categoria<input value="${esc(ov.tag)}" maxlength="40" data-path="${p}tag" placeholder="MONDO"></label>
       <label class="check"><input type="checkbox" ${ov.showClock ? 'checked' : ''} data-path="${p}showClock"> Mostra orologio</label>
-      <label class="full">Notizie <span class="muted" style="font-weight:400">· una per riga</span><textarea data-path="${p}text" maxlength="4000" rows="3">${esc(ov.text)}</textarea></label>
+      <label class="wide"><span>Feed RSS <span class="muted" style="font-weight:400">· opzionale, i titoli si aggiornano ogni 5 minuti</span></span><input type="url" value="${esc(ov.feedUrl || '')}" maxlength="500" data-path="${p}feedUrl" placeholder="https://www.ansa.it/sito/notizie/topnews/topnews_rss.xml"></label>
+      <label>Titoli dal feed<input type="number" min="1" max="50" value="${ov.feedMax || 10}" data-path="${p}feedMax"></label>
+      <div class="full feed-status muted small" data-feed-status="${i}"></div>
+      <label class="full"><span>Notizie scritte a mano <span class="muted" style="font-weight:400">· una per riga; se c'è un feed vengono mostrate dopo i suoi titoli</span></span><textarea data-path="${p}text" maxlength="4000" rows="3">${esc(ov.text)}</textarea></label>
       ${fontSelect(p + 'font', ov.font)}
       <label class="wide">Colori<div class="colors">${colorField(p + 'color', ov.color, 'Testo')}${colorField(p + 'labelBg', ov.labelBg, 'Testata')}${colorField(p + 'labelColor', ov.labelColor, 'Testo testata')}${colorField(p + 'tagBg', ov.tagBg, 'Categoria')}${colorField(p + 'bg', ov.bg, 'Sfondo')}</div></label>
       ${opacityField(p + 'bgOpacity', ov.bgOpacity)}
@@ -418,7 +421,11 @@
       </div>` : ''}
     </li>`).join('');
     $('#items-empty').classList.toggle('hidden', editing.items.length > 0);
-    ol.querySelectorAll('li').forEach(li => { if (openKeys.has(Number(li.dataset.key))) updatePreview(li); });
+    ol.querySelectorAll('li').forEach(li => {
+      if (!openKeys.has(Number(li.dataset.key))) return;
+      updatePreview(li);
+      itemOf(li).options.overlays.forEach((ov, i) => { if (ov.kind === 'ticker' && ov.feedUrl) checkFeed(li, i); });
+    });
   }
 
   function itemOf(li) { return editing.items[Number(li.dataset.i)]; }
@@ -488,6 +495,22 @@
     }
     updatePreview(li);
   }
+  // Verifica del feed RSS della barra notizie: mostra quanti titoli arrivano o l'errore
+  const feedTimers = new Map();
+  function checkFeed(li, i) {
+    const ov = itemOf(li).options.overlays[i];
+    const box = li.querySelector(`[data-feed-status="${i}"]`); if (!box) return;
+    if (!ov.feedUrl) { box.textContent = ''; return; }
+    box.textContent = 'Verifica del feed…';
+    clearTimeout(feedTimers.get(li.dataset.key + ':' + i));
+    feedTimers.set(li.dataset.key + ':' + i, setTimeout(async () => {
+      try {
+        const r = await fetch(`/api/feed?url=${encodeURIComponent(ov.feedUrl)}&max=3`, { cache: 'no-store' });
+        const j = await r.json();
+        box.textContent = r.ok ? `Feed ok · esempio: ${j.titles.join(' • ')}` : `Feed non leggibile: ${j.error}`;
+      } catch { box.textContent = 'Feed non raggiungibile'; }
+    }, 600));
+  }
   const previewTimers = new Map();
   function schedulePreview(li) {
     const k = li.dataset.key;
@@ -556,6 +579,7 @@
     let v = e.target.type === 'checkbox' ? e.target.checked : (e.target.type === 'range' || e.target.type === 'number') ? Number(e.target.value) : e.target.value;
     if (e.target.hasAttribute('data-box')) { if (!Number.isFinite(v)) return; v = Math.min(100, Math.max(0, v)); }
     setPath(it, path, v);
+    if (path.endsWith('.feedUrl')) checkFeed(li, Number(path.split('.')[2]));
     if (e.target.type === 'range') e.target.nextElementSibling.textContent = v + (path.endsWith('size') || path.endsWith('bgOpacity') ? '%' : '');
     schedulePreview(li);
   });

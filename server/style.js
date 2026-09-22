@@ -78,6 +78,8 @@ function cleanOverlay(ov) {
       tagBg: color(ov.tagBg, '#1d4ed8'), bg: color(ov.bg, '#0a1a3f'), bgOpacity: clamp(Math.round(num(ov.bgOpacity, 96)), 0, 100),
       speed: clamp(Math.round(num(ov.speed, 120)), 20, 600), showClock: ov.showClock !== false,
       bgImage: mediaSrc(ov.bgImage),
+      feedUrl: /^https?:\/\/\S+$/i.test(str(ov.feedUrl, 500)) ? str(ov.feedUrl, 500) : '',
+      feedMax: clamp(Math.round(num(ov.feedMax, 10)), 1, 50),
     };
   }
   if (kind === 'clock') {

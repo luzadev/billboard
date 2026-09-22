@@ -25,6 +25,13 @@
   }
 
   BBRender.loadFonts();
+  // In modalita' dispositivo il feed RSS va richiesto con il token dello schermo
+  BBRender.setFeedFetcher(async (url, max) => {
+    const headers = token && !PREVIEW_ID ? { Authorization: `Bearer ${token}` } : {};
+    const r = await fetch(`/api/feed?url=${encodeURIComponent(url)}&max=${max}`, { headers, cache: 'no-store' });
+    if (!r.ok) throw new Error('feed');
+    return (await r.json()).titles;
+  });
 
   function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function safeSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
