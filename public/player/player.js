@@ -94,8 +94,20 @@
     clearTimeout(pollTimer); pollTimer = setTimeout(pollPreview, 5000);
   }
 
+  // All'avvio allinea player e agente sullo stesso token: se l'agente ne ha uno vince il suo,
+  // altrimenti riceve quello del player (installazioni gia' associate).
+  let agentSynced = PREVIEW_ID ? true : false;
+  async function syncAgent() {
+    agentSynced = true;
+    const a = await agentFetch('');
+    if (!a) return;
+    if (a.token && a.token !== token) { token = a.token; safeSet(TOKEN_KEY, token); currentVersion = null; }
+    else if (!a.token && token) agentFetch('', { token });
+  }
+
   async function poll() {
     try {
+      if (!agentSynced) await syncAgent();
       if (!token) await register();
       const r = await fetch(`/api/device/state?w=${screen.width}&h=${screen.height}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
