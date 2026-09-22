@@ -496,8 +496,14 @@ class Handler(BaseHTTPRequestHandler):
         self._send(204, '', headers=self.CORS)
 
     def do_GET(self):
-        path = urllib.parse.urlparse(self.path).path
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
         if self._local():
+            qs = urllib.parse.parse_qs(parsed.query)
+            bad = (qs.get('invalid') or [''])[0]
+            if bad and bad == state['token']:
+                log('il server non riconosce piu\' il token: nuova registrazione')
+                set_token('')
             if path == '/token':
                 # il player (Chromium su questo Pi) usa lo stesso token dell'agente
                 return self._send(200, json.dumps({'token': ensure_token(), 'server': state['server'], 'agent': AGENT_VERSION}),
@@ -506,7 +512,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, setup_form())
             body = screen_page()
             if body is None:
-                return self._redirect(state['server'].rstrip('/') + '/player/')
+                tok = ensure_token()
+                if not tok:
+                    return self._send(200, page('Connessione', '<h1><span class="dot"></span>Registrazione sul server…</h1><p>' + html.escape(state['server']) + ' non risponde, riprovo.</p>', refresh=5, screen=True))
+                return self._redirect(state['server'].rstrip('/') + '/player/?token=' + urllib.parse.quote(tok))
             return self._send(200, body)
         # richieste dal telefono / dalla rete
         if state['mode'] != 'setup' and not (state['mode'] == 'online' and not state['server']):

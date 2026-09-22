@@ -40,22 +40,20 @@
   function hide(el) { el.classList.add('hidden'); }
   function schedule(seconds) { clearTimeout(pollTimer); pollTimer = setTimeout(poll, seconds * 1000); }
 
-  // Su un Raspberry con l'agente BillBoard, player e agente condividono lo stesso token
-  const AGENT = 'http://127.0.0.1/token';
-  async function agentFetch(path, body) {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 1500);
-    try {
-      const r = await fetch(AGENT + path, { signal: c.signal, cache: 'no-store', method: body ? 'POST' : 'GET',
-        body: body ? JSON.stringify(body) : undefined });
-      return r.ok ? await r.json() : null;
-    } catch { return null; } finally { clearTimeout(t); }
+  // Su un Raspberry con l'agente BillBoard il token arriva nell'URL di reindirizzamento
+  // (http://127.0.0.1/ -> /player/?token=...), cosi' la pagina non deve contattare il Pi.
+  const params = new URLSearchParams(location.search);
+  if (params.get('token')) {
+    token = params.get('token');
+    safeSet(TOKEN_KEY, token);
+    safeSet('billboard_agent', '1');
+    params.delete('token');
+    history.replaceState(null, '', location.pathname + (params.toString() ? '?' + params : ''));
   }
-  async function agentToken() { const j = await agentFetch(''); return j && j.token ? j.token : null; }
+  const hasAgent = () => safeGet('billboard_agent') === '1';
 
   async function register() {
-    const fromAgent = await agentToken();
-    if (fromAgent) { token = fromAgent; safeSet(TOKEN_KEY, token); return; }
+    if (hasAgent()) { location.href = 'http://127.0.0.1/'; return; }   // l'agente registra e rimanda qui con il token
     const r = await fetch('/api/device/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ screen: `${screen.width}x${screen.height}` }),
@@ -63,7 +61,6 @@
     if (!r.ok) throw new Error('register failed');
     token = (await r.json()).token;
     safeSet(TOKEN_KEY, token);
-    agentFetch('', { token });   // se c'e' un agente senza token, glielo consegna
   }
 
   // In anteprima lo stage assume il formato della playlist (16:9 o 9:16) centrato nella finestra
@@ -94,28 +91,18 @@
     clearTimeout(pollTimer); pollTimer = setTimeout(pollPreview, 5000);
   }
 
-  // All'avvio allinea player e agente sullo stesso token: se l'agente ne ha uno vince il suo,
-  // altrimenti riceve quello del player (installazioni gia' associate).
-  let agentSynced = PREVIEW_ID ? true : false;
-  async function syncAgent() {
-    agentSynced = true;
-    const a = await agentFetch('');
-    if (!a) return;
-    if (a.token && a.token !== token) { token = a.token; safeSet(TOKEN_KEY, token); currentVersion = null; }
-    else if (!a.token && token) agentFetch('', { token });
-  }
-
   async function poll() {
     try {
-      if (!agentSynced) await syncAgent();
       if (!token) await register();
+      if (!token) return schedule(5);
       const r = await fetch(`/api/device/state?w=${screen.width}&h=${screen.height}`, {
         headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
       });
       if (r.status === 401) {
-        agentFetch('/invalid', { token });   // l'agente scarta il token e si registra di nuovo
+        const bad = token;
         safeDel(TOKEN_KEY); token = null; currentVersion = null;
         stopPlayback();
+        if (hasAgent()) { location.href = 'http://127.0.0.1/?invalid=' + encodeURIComponent(bad); return; }
         return schedule(3);
       }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
