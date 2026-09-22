@@ -73,6 +73,7 @@ tenuto vivo da cron (`@reboot` e ogni 2 minuti) e inoltra il dominio con un `.ht
 web root:
 
 ```apache
+DirectoryIndex disabled
 RewriteEngine On
 RewriteCond %{HTTPS} off
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]

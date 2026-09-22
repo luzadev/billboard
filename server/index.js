@@ -50,7 +50,7 @@ app.use('/api/feed', feedRoutes);
 app.use('/media', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true, index: false,
   setHeaders: (res, filePath) => { if (filePath.endsWith('.avif')) res.setHeader('Content-Type', 'image/avif'); } }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
-app.get('/', (req, res) => res.redirect('/admin/'));
+app.get(['/', '/index.php', '/index.html'], (req, res) => res.redirect('/admin/'));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Endpoint inesistente' }));
 app.use((err, req, res, next) => {
