@@ -19,7 +19,7 @@ APT="$SUDO apt-get -o DPkg::Lock::Timeout=600 -y -qq"
 echo "==> Installo Chromium e utility (utente chiosco: $RUN_USER)"
 if curl -fsI --max-time 8 https://deb.debian.org >/dev/null 2>&1; then
   $APT update
-  $APT install chromium unclutter python3 network-manager 2>/dev/null || $APT install chromium-browser unclutter python3 network-manager || true
+  $APT install chromium unclutter python3 network-manager rfkill iw 2>/dev/null || $APT install chromium-browser unclutter python3 network-manager rfkill iw || true
 else
   echo "    nessuna connessione: uso i pacchetti già presenti nell'immagine (Chromium è incluso in Raspberry Pi OS Desktop)"
 fi
@@ -49,6 +49,11 @@ PY
 $SUDO systemctl daemon-reload
 $SUDO systemctl enable billboard-agent.service >/dev/null 2>&1
 $SUDO systemctl restart billboard-agent.service 2>/dev/null || true
+
+if [[ -n "${BILLBOARD_COUNTRY:-}" ]]; then
+  echo "==> Imposto il paese Wi-Fi ($BILLBOARD_COUNTRY): sblocca la radio per hotspot e connessioni"
+  $SUDO raspi-config nonint do_wifi_country "$BILLBOARD_COUNTRY" 2>/dev/null || true
+fi
 
 echo "==> Disabilito lo spegnimento dello schermo"
 $SUDO raspi-config nonint do_blanking 1 2>/dev/null || true

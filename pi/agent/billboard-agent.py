@@ -54,7 +54,12 @@ def run(cmd, timeout=60):
     if MOCK:
         log('MOCK: ' + ' '.join(cmd))
         return subprocess.CompletedProcess(cmd, 0, '', '')
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(cmd, 127, '', f'comando non trovato: {cmd[0]}')
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 124, '', f'timeout: {cmd[0]}')
 
 
 def load_config():
