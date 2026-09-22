@@ -41,7 +41,7 @@ sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[^"]*"/"
 while true; do
   "$CHROMIUM" --kiosk --password-store=basic --noerrdialogs --disable-infobars --disable-session-crashed-bubble \\
     --autoplay-policy=no-user-gesture-required --check-for-update-interval=31536000 \\
-    --disable-features=TranslateUI --overscroll-history-navigation=0 --disable-pinch \\
+    --disable-features=TranslateUI,Translate --disable-translate --lang=it --overscroll-history-navigation=0 --disable-pinch \\
     --user-data-dir="\$PROFILE" --start-fullscreen "\$PLAYER_URL"
   sleep 3
 done
