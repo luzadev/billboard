@@ -151,6 +151,36 @@ Suggerimenti:
   Scegli quanti titoli mostrare con "Titoli dal feed". Le notizie scritte a mano vengono mostrate
   dopo i titoli del feed, oppure da sole se il feed non risponde. Funzionano i feed RSS e Atom.
 
+## 7b. Spostare uno schermo in un'altra sede (rete o server diversi)
+
+Ogni Raspberry ha un piccolo **agente** che controlla la rete. Se all'accensione non trova una
+rete conosciuta per circa un minuto e mezzo (e non c'è un cavo di rete collegato), crea da solo
+una rete Wi‑Fi di configurazione e mostra le istruzioni sullo schermo:
+
+1. Con il telefono collegati alla rete **BillBoard‑Setup‑XXXX** (password `billboard`), il codice
+   XXXX è scritto sullo schermo.
+2. Si apre automaticamente la pagina di configurazione (se non compare, apri `http://10.42.0.1`).
+3. Scegli la rete Wi‑Fi della sede tra quelle trovate, inserisci la password e, se serve, il nuovo
+   indirizzo del server BillBoard. Premi **Salva e collega**.
+4. La rete di configurazione si chiude, lo schermo si collega alla nuova rete e dopo pochi secondi
+   mostra il codice di associazione (o riprende la playlist, se era già associato allo stesso
+   server).
+
+Se la rete conosciuta torna disponibile mentre la rete di configurazione è aperta, ogni 5 minuti
+lo schermo prova a ricollegarsi da solo.
+
+In alternativa, senza telefono: spegni il Pi, inserisci la microSD in un computer e crea nella
+partizione `bootfs` un file di testo `billboard.txt`:
+
+```
+SERVER=https://billboard.tuodominio.it
+WIFI_SSID=NomeRete
+WIFI_PASS=password
+WIFI_COUNTRY=IT
+```
+
+All'avvio il Pi applica le impostazioni e cancella la password dal file.
+
 ## 8. Schermi verticali e orientamento
 
 Ogni playlist ha un orientamento, **orizzontale** o **verticale**. L'anteprima usa il formato

@@ -1,0 +1,13 @@
+[Unit]
+Description=BillBoard agent (stato rete, hotspot di configurazione, avvio player)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/lib/billboard/billboard-agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

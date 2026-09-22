@@ -9,7 +9,7 @@ if [[ -z "$SERVER_URL" ]]; then
   read -rp "URL del server BillBoard (es. https://billboard.tuodominio.it): " SERVER_URL
 fi
 SERVER_URL="${SERVER_URL%/}"
-PLAYER_URL="$SERVER_URL/player/"
+RAW_BASE="https://raw.githubusercontent.com/luzadev/billboard/main/pi"
 RUN_USER="${BILLBOARD_USER:-${SUDO_USER:-$USER}}"
 if [[ "$RUN_USER" == "root" ]]; then RUN_USER="$(getent passwd 1000 | cut -d: -f1)"; fi
 USER_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
@@ -18,8 +18,31 @@ APT="$SUDO apt-get -o DPkg::Lock::Timeout=600 -y -qq"
 
 echo "==> Installo Chromium e utility (utente chiosco: $RUN_USER)"
 $APT update
-$APT install chromium unclutter 2>/dev/null || $APT install chromium-browser unclutter
+$APT install chromium unclutter python3 network-manager 2>/dev/null || $APT install chromium-browser unclutter python3 network-manager
 CHROMIUM="$(command -v chromium || command -v chromium-browser)"
+
+echo "==> Installo l'agente BillBoard (stato rete e hotspot di configurazione)"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo /nonexistent)"
+$SUDO mkdir -p /usr/local/lib/billboard /etc/billboard /etc/NetworkManager/dnsmasq-shared.d
+for f in billboard-agent.py billboard-agent.service captive.conf; do
+  if [[ -f "$HERE/agent/$f" ]]; then $SUDO cp "$HERE/agent/$f" "/usr/local/lib/billboard/$f"
+  else curl -fsSL "$RAW_BASE/agent/$f" | $SUDO tee "/usr/local/lib/billboard/$f" >/dev/null; fi
+done
+$SUDO chmod 755 /usr/local/lib/billboard/billboard-agent.py
+$SUDO cp /usr/local/lib/billboard/captive.conf /etc/NetworkManager/dnsmasq-shared.d/billboard-captive.conf
+$SUDO cp /usr/local/lib/billboard/billboard-agent.service /etc/systemd/system/billboard-agent.service
+# server iniziale (l'agente lo puo' cambiare dal portale di configurazione)
+python3 - "$SERVER_URL" <<'PY' | $SUDO tee /etc/billboard/config.json >/dev/null
+import json, sys, os
+cfg = {}
+try: cfg = json.load(open('/etc/billboard/config.json'))
+except Exception: pass
+cfg['server'] = sys.argv[1]
+print(json.dumps(cfg, indent=2))
+PY
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable billboard-agent.service >/dev/null 2>&1
+$SUDO systemctl restart billboard-agent.service 2>/dev/null || true
 
 echo "==> Disabilito lo spegnimento dello schermo"
 $SUDO raspi-config nonint do_blanking 1 2>/dev/null || true
@@ -28,8 +51,9 @@ echo "==> Creo lo script di avvio"
 mkdir -p "$USER_HOME/.local/bin" "$USER_HOME/.config"
 cat > "$USER_HOME/.local/bin/billboard-kiosk.sh" <<KIOSK
 #!/usr/bin/env bash
-# Player BillBoard: Chromium in modalita' chiosco
-PLAYER_URL="$PLAYER_URL"
+# Player BillBoard: Chromium in modalita' chiosco.
+# Apre l'agente locale, che rimanda al server quando la rete c'e' e mostra le istruzioni altrimenti.
+PLAYER_URL="http://127.0.0.1/"
 # Una sola istanza: labwc e l'autostart XDG possono lanciare lo script due volte
 exec 9>"/tmp/billboard-kiosk.lock"
 flock -n 9 || exit 0

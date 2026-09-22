@@ -90,6 +90,11 @@ Lo script installa Chromium, disattiva lo spegnimento dello schermo, abilita il 
 avvia al boot Chromium in modalità chiosco sulla pagina `/player/`; se Chromium si chiude viene
 riavviato. Al boot lo schermo mostra il codice di associazione.
 
+Sul Pi gira anche un **agente** (`pi/agent/`): il chiosco apre `http://127.0.0.1/`, l'agente
+rimanda al server quando la rete c'è; se il Pi resta senza rete apre l'hotspot
+**BillBoard‑Setup‑XXXX** con portale captive per impostare Wi‑Fi e server dal telefono, e
+applica il file `billboard.txt` dalla partizione di boot (vedi la guida, sezione 7b).
+
 Per uno schermo **verticale** imposta la rotazione sul Pi (Screen Configuration nel desktop,
 oppure `wlr-randr`), il player si adatta da solo.
 
@@ -160,7 +165,8 @@ server/            Express + SQLite (better-sqlite3)
 public/admin/      pannello di controllo (HTML/CSS/JS senza build)
 public/player/     player a schermo intero (/player/?preview=<id> per l'anteprima)
 public/shared/     motore di rendering condiviso tra player e anteprima
-pi/install.sh      installazione chiosco su Raspberry Pi OS
+pi/install.sh      installazione chiosco + agente su Raspberry Pi OS
+pi/agent/          agente: stato rete, hotspot di configurazione, portale captive
 pi/build-image.sh  crea un'immagine SD preconfigurata (cloud-init)
 Dockerfile, docker-compose*.yml, Caddyfile
 ```
