@@ -119,6 +119,14 @@ echo "    boot montata in $MNT"
 # ---------- 3. genera la configurazione di primo avvio (cloud-init, come Raspberry Pi Imager) ----------
 PASS_HASH="$(printf '%s' "$USER_PASS" | openssl passwd -6 -stdin)"
 INSTALL_B64="$(base64 < "$HERE/install.sh" | tr -d '\n')"
+AGENT_FILES=""
+for f in billboard-agent.py billboard-agent.service captive.conf; do
+  AGENT_FILES+="  - path: /usr/local/bin/agent/$f
+    permissions: \"0644\"
+    encoding: b64
+    content: $(base64 < "$HERE/agent/$f" | tr -d '\n')
+"
+done
 {
 cat <<YAML
 #cloud-config
@@ -146,11 +154,7 @@ write_files:
     permissions: "0755"
     encoding: b64
     content: $INSTALL_B64
-  - path: /etc/billboard.conf
-    permissions: "0644"
-    content: |
-      BILLBOARD_SERVER=$SERVER
-      BILLBOARD_USER=$USER_NAME
+$AGENT_FILES
 runcmd:
 YAML
 [[ $SSH == 1 ]] && echo "  - [ systemctl, enable, --now, ssh ]"
