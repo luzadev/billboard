@@ -47,7 +47,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/device', deviceRoutes);
 app.use('/api/feed', feedRoutes);
 
-app.use('/media', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true, index: false }));
+app.use('/media', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true, index: false,
+  setHeaders: (res, filePath) => { if (filePath.endsWith('.avif')) res.setHeader('Content-Type', 'image/avif'); } }));
 app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'] }));
 app.get('/', (req, res) => res.redirect('/admin/'));
 
